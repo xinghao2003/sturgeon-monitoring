@@ -1,0 +1,201 @@
+Title: Export
+
+URL Source: http://docs.ultralytics.com/modes/export/
+
+Markdown Content:
+[](https://github.com/ultralytics/ultralytics/tree/main/docs/en/modes/export.md "Edit this page")
+Model Export with Ultralytics YOLO
+----------------------------------
+
+![Image 1: Ultralytics YOLO ecosystem and integrations](https://github.com/ultralytics/docs/releases/download/0/ultralytics-yolov8-ecosystem-integrations.avif)
+
+Introduction
+------------
+
+The ultimate goal of training a model is to deploy it for real-world applications. Export mode in Ultralytics YOLO11 offers a versatile range of options for exporting your trained model to different formats, making it deployable across various platforms and devices. This comprehensive guide aims to walk you through the nuances of model exporting, showcasing how to achieve maximum compatibility and performance.
+
+**Watch:** How To Export Custom Trained Ultralytics YOLO Model and Run Live Inference on Webcam.
+
+Why Choose YOLO11's Export Mode?
+--------------------------------
+
+*   **Versatility:** Export to multiple formats including [ONNX](https://docs.ultralytics.com/integrations/onnx/), [TensorRT](https://docs.ultralytics.com/integrations/tensorrt/), [CoreML](https://docs.ultralytics.com/integrations/coreml/), and more.
+*   **Performance:** Gain up to 5x GPU speedup with TensorRT and 3x CPU speedup with ONNX or [OpenVINO](https://docs.ultralytics.com/integrations/openvino/).
+*   **Compatibility:** Make your model universally deployable across numerous hardware and software environments.
+*   **Ease of Use:** Simple CLI and Python API for quick and straightforward model exporting.
+
+### Key Features of Export Mode
+
+Here are some of the standout functionalities:
+
+*   **One-Click Export:** Simple commands for exporting to different formats.
+*   **Batch Export:** Export batched-inference capable models.
+*   **Optimized Inference:** Exported models are optimized for quicker inference times.
+*   **Tutorial Videos:** In-depth guides and tutorials for a smooth exporting experience.
+
+Tip
+
+*   Export to [ONNX](https://docs.ultralytics.com/integrations/onnx/) or [OpenVINO](https://docs.ultralytics.com/integrations/openvino/) for up to 3x CPU speedup.
+*   Export to [TensorRT](https://docs.ultralytics.com/integrations/tensorrt/) for up to 5x GPU speedup.
+
+Usage Examples
+--------------
+
+Export a YOLO11n model to a different format like ONNX or TensorRT. See the Arguments section below for a full list of export arguments.
+
+Example
+
+```
+from ultralytics import YOLO
+
+# Load a model
+model = YOLO("yolo11n.pt")  # load an official model
+model = YOLO("path/to/best.pt")  # load a custom trained model
+
+# Export the model
+model.export(format="onnx")
+```
+
+```
+yolo export model=yolo11n.pt format=onnx      # export official model
+yolo export model=path/to/best.pt format=onnx # export custom trained model
+```
+
+Arguments
+---------
+
+This table details the configurations and options available for exporting YOLO models to different formats. These settings are critical for optimizing the exported model's performance, size, and compatibility across various platforms and environments. Proper configuration ensures that the model is ready for deployment in the intended application with optimal efficiency.
+
+| Argument | Type | Default | Description |
+| --- | --- | --- | --- |
+| `format` | `str` | `'torchscript'` | Target format for the exported model, such as `'onnx'`, `'torchscript'`, `'engine'` (TensorRT), or others. Each format enables compatibility with different [deployment environments](https://docs.ultralytics.com/modes/export/). |
+| `imgsz` | `int` or `tuple` | `640` | Desired image size for the model input. Can be an integer for square images (e.g., `640` for 640×640) or a tuple `(height, width)` for specific dimensions. |
+| `keras` | `bool` | `False` | Enables export to Keras format for [TensorFlow](https://www.ultralytics.com/glossary/tensorflow) SavedModel, providing compatibility with TensorFlow serving and APIs. |
+| `optimize` | `bool` | `False` | Applies optimization for mobile devices when exporting to TorchScript, potentially reducing model size and improving [inference](https://docs.ultralytics.com/modes/predict/) performance. Not compatible with NCNN format or CUDA devices. |
+| `half` | `bool` | `False` | Enables FP16 (half-precision) quantization, reducing model size and potentially speeding up inference on supported hardware. Not compatible with INT8 quantization or CPU-only exports. Only available for certain formats, e.g. ONNX (see below). |
+| `int8` | `bool` | `False` | Activates INT8 quantization, further compressing the model and speeding up inference with minimal [accuracy](https://www.ultralytics.com/glossary/accuracy) loss, primarily for [edge devices](https://www.ultralytics.com/blog/understanding-the-real-world-applications-of-edge-ai). When used with TensorRT, performs post-training quantization (PTQ). |
+| `dynamic` | `bool` | `False` | Allows dynamic input sizes for ONNX, TensorRT and OpenVINO exports, enhancing flexibility in handling varying image dimensions. Automatically set to `True` when using TensorRT with INT8. |
+| `simplify` | `bool` | `True` | Simplifies the model graph for ONNX exports with `onnxslim`, potentially improving performance and compatibility with inference engines. |
+| `opset` | `int` | `None` | Specifies the ONNX opset version for compatibility with different [ONNX](https://docs.ultralytics.com/integrations/onnx/) parsers and runtimes. If not set, uses the latest supported version. |
+| `workspace` | `float` or `None` | `None` | Sets the maximum workspace size in GiB for [TensorRT](https://docs.ultralytics.com/integrations/tensorrt/) optimizations, balancing memory usage and performance. Use `None` for auto-allocation by TensorRT up to device maximum. |
+| `nms` | `bool` | `False` | Adds Non-Maximum Suppression (NMS) to the exported model when supported (see [Export Formats](https://docs.ultralytics.com/modes/export/)), improving detection post-processing efficiency. Not available for end2end models. |
+| `batch` | `int` | `1` | Specifies export model batch inference size or the maximum number of images the exported model will process concurrently in `predict` mode. For Edge TPU exports, this is automatically set to 1. |
+| `device` | `str` | `None` | Specifies the device for exporting: GPU (`device=0`), CPU (`device=cpu`), MPS for Apple silicon (`device=mps`) or DLA for NVIDIA Jetson (`device=dla:0` or `device=dla:1`). TensorRT exports automatically use GPU. |
+| `data` | `str` | `'coco8.yaml'` | Path to the [dataset](https://docs.ultralytics.com/datasets/) configuration file (default: `coco8.yaml`), essential for INT8 quantization calibration. If not specified with INT8 enabled, a default dataset will be assigned. |
+| `fraction` | `float` | `1.0` | Specifies the fraction of the dataset to use for INT8 quantization calibration. Allows for calibrating on a subset of the full dataset, useful for experiments or when resources are limited. If not specified with INT8 enabled, the full dataset will be used. |
+
+Adjusting these parameters allows for customization of the export process to fit specific requirements, such as deployment environment, hardware constraints, and performance targets. Selecting the appropriate format and settings is essential for achieving the best balance between model size, speed, and [accuracy](https://www.ultralytics.com/glossary/accuracy).
+
+Export Formats
+--------------
+
+Available YOLO11 export formats are in the table below. You can export to any format using the `format` argument, i.e. `format='onnx'` or `format='engine'`. You can predict or validate directly on exported models, i.e. `yolo predict model=yolo11n.onnx`. Usage examples are shown for your model after export completes.
+
+| Format | `format` Argument | Model | Metadata | Arguments |
+| --- | --- | --- | --- | --- |
+| [PyTorch](https://pytorch.org/) | - | `yolo11n.pt` | ✅ | - |
+| [TorchScript](https://docs.ultralytics.com/integrations/torchscript/) | `torchscript` | `yolo11n.torchscript` | ✅ | `imgsz`, `half`, `dynamic`, `optimize`, `nms`, `batch`, `device` |
+| [ONNX](https://docs.ultralytics.com/integrations/onnx/) | `onnx` | `yolo11n.onnx` | ✅ | `imgsz`, `half`, `dynamic`, `simplify`, `opset`, `nms`, `batch`, `device` |
+| [OpenVINO](https://docs.ultralytics.com/integrations/openvino/) | `openvino` | `yolo11n_openvino_model/` | ✅ | `imgsz`, `half`, `dynamic`, `int8`, `nms`, `batch`, `data`, `fraction`, `device` |
+| [TensorRT](https://docs.ultralytics.com/integrations/tensorrt/) | `engine` | `yolo11n.engine` | ✅ | `imgsz`, `half`, `dynamic`, `simplify`, `workspace`, `int8`, `nms`, `batch`, `data`, `fraction`, `device` |
+| [CoreML](https://docs.ultralytics.com/integrations/coreml/) | `coreml` | `yolo11n.mlpackage` | ✅ | `imgsz`, `dynamic`, `half`, `int8`, `nms`, `batch`, `device` |
+| [TF SavedModel](https://docs.ultralytics.com/integrations/tf-savedmodel/) | `saved_model` | `yolo11n_saved_model/` | ✅ | `imgsz`, `keras`, `int8`, `nms`, `batch`, `device` |
+| [TF GraphDef](https://docs.ultralytics.com/integrations/tf-graphdef/) | `pb` | `yolo11n.pb` | ❌ | `imgsz`, `batch`, `device` |
+| [TF Lite](https://docs.ultralytics.com/integrations/tflite/) | `tflite` | `yolo11n.tflite` | ✅ | `imgsz`, `half`, `int8`, `nms`, `batch`, `data`, `fraction`, `device` |
+| [TF Edge TPU](https://docs.ultralytics.com/integrations/edge-tpu/) | `edgetpu` | `yolo11n_edgetpu.tflite` | ✅ | `imgsz`, `device` |
+| [TF.js](https://docs.ultralytics.com/integrations/tfjs/) | `tfjs` | `yolo11n_web_model/` | ✅ | `imgsz`, `half`, `int8`, `nms`, `batch`, `device` |
+| [PaddlePaddle](https://docs.ultralytics.com/integrations/paddlepaddle/) | `paddle` | `yolo11n_paddle_model/` | ✅ | `imgsz`, `batch`, `device` |
+| [MNN](https://docs.ultralytics.com/integrations/mnn/) | `mnn` | `yolo11n.mnn` | ✅ | `imgsz`, `batch`, `int8`, `half`, `device` |
+| [NCNN](https://docs.ultralytics.com/integrations/ncnn/) | `ncnn` | `yolo11n_ncnn_model/` | ✅ | `imgsz`, `half`, `batch`, `device` |
+| [IMX500](https://docs.ultralytics.com/integrations/sony-imx500/) | `imx` | `yolo11n_imx_model/` | ✅ | `imgsz`, `int8`, `data`, `fraction`, `device` |
+| [RKNN](https://docs.ultralytics.com/integrations/rockchip-rknn/) | `rknn` | `yolo11n_rknn_model/` | ✅ | `imgsz`, `batch`, `name`, `device` |
+| [ExecuTorch](https://docs.ultralytics.com/integrations/executorch/) | `executorch` | `yolo11n_executorch_model/` | ✅ | `imgsz`, `device` |
+
+FAQ
+---
+
+### How do I export a YOLO11 model to ONNX format?
+
+Exporting a YOLO11 model to ONNX format is straightforward with Ultralytics. It provides both Python and CLI methods for exporting models.
+
+Example
+
+```
+from ultralytics import YOLO
+
+# Load a model
+model = YOLO("yolo11n.pt")  # load an official model
+model = YOLO("path/to/best.pt")  # load a custom trained model
+
+# Export the model
+model.export(format="onnx")
+```
+
+```
+yolo export model=yolo11n.pt format=onnx      # export official model
+yolo export model=path/to/best.pt format=onnx # export custom trained model
+```
+
+For more details on the process, including advanced options like handling different input sizes, refer to the [ONNX integration guide](https://docs.ultralytics.com/integrations/onnx/).
+
+### What are the benefits of using TensorRT for model export?
+
+Using TensorRT for model export offers significant performance improvements. YOLO11 models exported to TensorRT can achieve up to a 5x GPU speedup, making it ideal for real-time inference applications.
+
+*   **Versatility:** Optimize models for a specific hardware setup.
+*   **Speed:** Achieve faster inference through advanced optimizations.
+*   **Compatibility:** Integrate smoothly with NVIDIA hardware.
+
+To learn more about integrating TensorRT, see the [TensorRT integration guide](https://docs.ultralytics.com/integrations/tensorrt/).
+
+### How do I enable INT8 quantization when exporting my YOLO11 model?
+
+INT8 quantization is an excellent way to compress the model and speed up inference, especially on edge devices. Here's how you can enable INT8 quantization:
+
+Example
+
+```
+from ultralytics import YOLO
+
+model = YOLO("yolo11n.pt")  # Load a model
+model.export(format="engine", int8=True)
+```
+
+```
+yolo export model=yolo11n.pt format=engine int8=True # export TensorRT model with INT8 quantization
+```
+
+INT8 quantization can be applied to various formats, such as [TensorRT](https://docs.ultralytics.com/integrations/tensorrt/), [OpenVINO](https://docs.ultralytics.com/integrations/openvino/), and [CoreML](https://docs.ultralytics.com/integrations/coreml/). For optimal quantization results, provide a representative [dataset](https://docs.ultralytics.com/datasets/) using the `data` parameter.
+
+### Why is dynamic input size important when exporting models?
+
+Dynamic input size allows the exported model to handle varying image dimensions, providing flexibility and optimizing processing efficiency for different use cases. When exporting to formats like [ONNX](https://docs.ultralytics.com/integrations/onnx/) or [TensorRT](https://docs.ultralytics.com/integrations/tensorrt/), enabling dynamic input size ensures that the model can adapt to different input shapes seamlessly.
+
+To enable this feature, use the `dynamic=True` flag during export:
+
+Example
+
+```
+from ultralytics import YOLO
+
+model = YOLO("yolo11n.pt")
+model.export(format="onnx", dynamic=True)
+```
+
+```
+yolo export model=yolo11n.pt format=onnx dynamic=True
+```
+
+Dynamic input sizing is particularly useful for applications where input dimensions may vary, such as video processing or when handling images from different sources.
+
+### What are the key export arguments to consider for optimizing model performance?
+
+Understanding and configuring export arguments is crucial for optimizing model performance:
+
+*   **`format:`** The target format for the exported model (e.g., `onnx`, `torchscript`, `tensorflow`).
+*   **`imgsz:`** Desired image size for the model input (e.g., `640` or `(height, width)`).
+*   **`half:`** Enables FP16 quantization, reducing model size and potentially speeding up inference.
+*   **`optimize:`** Applies specific optimizations for mobile or constrained environments.
+*   **`int8:`** Enables INT8 quantization, highly beneficial for [edge AI](https://www.ultralytics.com/blog/deploying-computer-vision-applications-on-edge-ai-devices) deployments.
+
+For deployment on specific hardware platforms, consider using specialized export formats like [TensorRT](https://docs.ultralytics.com/integrations/tensorrt/) for NVIDIA GPUs, [CoreML](https://docs.ultralytics.com/integrations/coreml/) for Apple devices, or [Edge TPU](https://docs.ultralytics.com/integrations/edge-tpu/) for Google Coral devices.

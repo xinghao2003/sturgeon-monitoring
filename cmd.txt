@@ -1,0 +1,2 @@
+pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu130
+python y11_seg_train.py --data dataset/data.yaml --batch -1 --workers 0 --tune-workers 0 --tune --export-onnx --plots
