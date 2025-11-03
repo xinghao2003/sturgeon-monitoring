@@ -68,6 +68,7 @@ class YOLOTrackerApp:
         self.colormap_var = StringVar(value="JET")
         self.decay_enabled = BooleanVar(value=False)
         self.decay_rate_var = IntVar(value=0)           # 0..20 (% per frame)
+        self.max_det_var = IntVar(value=120)
 
         self.heat_accum = None                          # float32 (H,W)
         self.heat_writer = None
@@ -193,6 +194,10 @@ class YOLOTrackerApp:
                                orient=HORIZONTAL, label="IoU", length=280)
         self.iou_scale.set(DEFAULT_IOU)
         self.iou_scale.pack(anchor="w")
+        self.max_det_scale = Scale(sliders_frame, from_=20, to=300, resolution=10,
+                            orient=HORIZONTAL, label="Max detections", length=280,
+                            variable=self.max_det_var)
+        self.max_det_scale.pack(anchor="w")
 
         # Class filtering
         cls_frame = LabelFrame(self.right_frame, text="Class Filter", padx=8, pady=8)
@@ -287,7 +292,7 @@ class YOLOTrackerApp:
         self.status_text.set("Loading model…")
         self.master.update_idletasks()
         try:
-            self.model = YOLO(path)
+            self.model = YOLO(path, task="segment")
             self.model_path = path
             self.status_text.set(f"Loaded model: {os.path.basename(path)}")
             self._populate_class_list()
@@ -502,6 +507,7 @@ class YOLOTrackerApp:
         tracker_cfg = self.tracker_var.get()
         conf = float(self.conf_scale.get())
         iou = float(self.iou_scale.get())
+        max_det = max(1, int(self.max_det_var.get()))
         model_name = os.path.basename(self.model_path) if self.model_path else "-"
         selected_classes = self._selected_class_ids()
 
@@ -539,8 +545,9 @@ class YOLOTrackerApp:
                     tracker=tracker_cfg,
                     conf=conf,
                     iou=iou,
+                    max_det=max_det,
                     classes=selected_classes,
-                    verbose=False
+                    verbose=True
                 )
                 res = results[0]
 
