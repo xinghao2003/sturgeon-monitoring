@@ -43,6 +43,7 @@ def parse_args():
     p.add_argument("--tune-name", default=None)
     p.add_argument("--tune-workers", type=int, default=None,
                    help="Override DataLoader workers specifically during hyperparameter tuning")
+    p.add_argument("--tuned-hyp", default=None, help="Path to best_hyperparameters.yaml to apply for training")
 
     # export
     p.add_argument("--export-onnx", action="store_true", help="Export best weights to ONNX")
@@ -268,6 +269,17 @@ def main():
         train_kwargs.update(best_hyp)
     if args.workers is not None:
         train_kwargs["workers"] = args.workers
+    if args.tuned_hyp:
+        import yaml, pathlib
+        hyp_path = pathlib.Path(args.tuned_hyp)
+        if hyp_path.exists():
+            with open(hyp_path, "r", encoding="utf-8") as f:
+                tuned = yaml.safe_load(f) or {}
+            # merge tuned hypers into the training kwargs
+            train_kwargs.update(tuned)
+            print(f"[green]Loaded tuned hypers from[/] {hyp_path}")
+        else:
+            print(f"[yellow]--tuned-hyp file not found:[/] {hyp_path}")
 
     train_start = time.time()
     train_results = model.train(**train_kwargs)
