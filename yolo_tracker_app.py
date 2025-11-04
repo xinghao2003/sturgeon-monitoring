@@ -294,7 +294,7 @@ class YOLOTrackerApp:
         else:
             path = filedialog.askopenfilename(
                 title="Select YOLO model (.pt or .onnx)",
-                filetypes=[("YOLO model", "*.pt *.onnx"), ("All files", "*.*")]
+                filetypes=[("YOLO model", "*.pt *.pt *.onnx"), ("All files", "*.*")]
             )
             if not path:
                 return
@@ -303,7 +303,19 @@ class YOLOTrackerApp:
         self.status_text.set("Loading model…")
         self.master.update_idletasks()
         try:
+            # Normalize device string for YOLO/OpenVINO compatibility
+            yolo_device = self._normalize_device(device)
+            
             self.model = YOLO(self.model_path, task="segment")
+            
+            # Move to device ONLY if not auto (avoids double initialization)
+            if device != "auto":
+                try:
+                    self.model.to(yolo_device)
+                except Exception as dev_err:
+                    self.status_text.set(f"Device move to '{yolo_device}' failed: {dev_err}. Using auto.")
+                    yolo_device = "auto"
+            
             self.status_text.set(f"Loaded model: {os.path.basename(self.model_path)}")
             self._populate_class_list()
             self._update_start_state()
@@ -315,6 +327,21 @@ class YOLOTrackerApp:
             self._refresh_class_listbox()
             self.status_text.set(f"Failed to load model: {e}")
             self._update_start_state()
+
+    def _normalize_device(self, device_str: str) -> str:
+        """
+        Convert UI device string to YOLO/OpenVINO compatible format.
+        """
+        if device_str == "auto":
+            return "auto"
+        elif device_str == "cpu":
+            return "cpu"
+        elif device_str == "cuda":
+            return "cuda"
+        elif device_str == "intel:gpu":
+            return "GPU.0"  # OpenVINO GPU format
+        else:
+            return device_str
 
     def pick_video(self):
         path = filedialog.askopenfilename(
@@ -459,15 +486,15 @@ class YOLOTrackerApp:
 
         # Device handling
         device = self.device_var.get()
-        applied_device = device
+        applied_device = self._normalize_device(device)
+        
         try:
             if device != "auto":
-                self.model.to(device)
-            else:
-                applied_device = "auto"
+                self.model.to(applied_device)
         except Exception as e:
-            self.status_text.set(f"Device set failed ({device}), using auto. ({e})")
+            self.status_text.set(f"Device set failed ({applied_device}), using auto. ({e})")
             applied_device = "auto"
+        
         self._set_readout_device(applied_device)
 
         self.stop_event.clear()
@@ -485,7 +512,7 @@ class YOLOTrackerApp:
         self.progress["value"] = 0
         self.progress["maximum"] = 1
         self.eta_text.set("ETA: --:-- | 0/0")
-        self.heat_accum = None  # start fresh per run
+        self.heat_accum = None
         self.heat_accum_per_cls = {}
 
         # Launch worker
@@ -548,7 +575,8 @@ class YOLOTrackerApp:
                     cv2.fillPoly(mask, [roi_poly], 255)
                     frame_bgr = cv2.bitwise_and(frame_bgr, frame_bgr, mask=mask)
 
-                # Run tracking
+                # Run tracking with normalized device
+                applied_device = self._normalize_device(self.device_var.get())
                 results = self.model.track(
                     source=frame_bgr,
                     persist=True,
@@ -557,8 +585,8 @@ class YOLOTrackerApp:
                     iou=iou,
                     max_det=max_det,
                     classes=selected_classes,
-                    verbose=True,
-                    device=self.device_var.get(),
+                    verbose=True,  # Changed to False to reduce spam
+                    device=applied_device,
                 )
                 res = results[0]
 
