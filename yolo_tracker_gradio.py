@@ -1,5 +1,6 @@
 import shutil
 import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
@@ -13,6 +14,9 @@ DEFAULT_CONF = 0.25
 DEFAULT_IOU = 0.50
 DEFAULT_TRACKER = "botsort.yaml"
 
+# Global stop event for tracking control
+stop_event = threading.Event()
+
 CV_COLORMAPS = {
     "JET": cv2.COLORMAP_JET,
     "TURBO": getattr(cv2, "COLORMAP_TURBO", cv2.COLORMAP_JET),
@@ -20,6 +24,17 @@ CV_COLORMAPS = {
     "BONE": cv2.COLORMAP_BONE,
     "VIRIDIS": getattr(cv2, "COLORMAP_VIRIDIS", cv2.COLORMAP_JET),
 }
+
+
+def _detect_available_cameras(max_test: int = 10) -> List[int]:
+    """Detect which camera indices are available on the system."""
+    available = []
+    for i in range(max_test):
+        cap = cv2.VideoCapture(i)
+        if cap.isOpened():
+            available.append(i)
+            cap.release()
+    return available
 
 
 def _resolve_path(file_obj) -> Optional[str]:
@@ -150,6 +165,9 @@ def run_tracking(
     simulate_real_time: bool,
     enable_streaming: bool = False,
 ):
+    global stop_event
+    stop_event.clear()  # Reset stop event at start
+    
     progress = gr.Progress(track_tqdm=False)
     status: List[str] = []
     progress(0, desc="Preparing inputs")
@@ -180,7 +198,7 @@ def run_tracking(
 
     progress(0, desc="Loading model")
     try:
-        model = YOLO(model_path, task="segment")
+        model = YOLO(model_path, task="segment", verbose=True)
     except Exception as exc:
         return None, None, None, f"Failed to load model: {exc}"
 
@@ -199,10 +217,14 @@ def run_tracking(
         except ValueError:
             capture_source = camera_source
         cap = cv2.VideoCapture(capture_source)
+        if not cap.isOpened():
+            cap.release()
+            return None, None, None, f"Camera index {capture_source} not available. Try a different index (0, 1, 2...) or check if your camera is connected."
     else:
         cap = cv2.VideoCapture(str(video_path))
-    if not cap.isOpened():
-        return None, None, None, "Unable to open video source."
+        if not cap.isOpened():
+            cap.release()
+            return None, None, None, f"Unable to open video file: {video_path}"
 
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
@@ -246,6 +268,11 @@ def run_tracking(
     try:
         progress(0, desc="Running tracking")
         while True:
+            # Check if stop was requested
+            if stop_event.is_set():
+                status.append("⛔ Tracking stopped by user")
+                break
+            
             frame_start = time.time()
             if preload_frame is not None:
                 frame_bgr = preload_frame
@@ -265,7 +292,7 @@ def run_tracking(
                 iou=float(iou),
                 max_det=max_det,
                 classes=class_ids,
-                verbose=False,
+                verbose=True,
             )
             res = results[0]
             boxes = getattr(res, "boxes", None)
@@ -422,6 +449,9 @@ def run_tracking_stream(
     simulate_real_time: bool,
 ):
     """Generator version of tracking that yields video chunks for streaming."""
+    global stop_event
+    stop_event.clear()  # Reset stop event at start
+    
     status_updates: List[str] = []
     model_path = _resolve_path(model_file)
     video_path = _resolve_path(video_file)
@@ -462,7 +492,7 @@ def run_tracking_stream(
         if device != "auto":
             model.to(device)
     except Exception as exc:
-        status.append(f"Device '{device}' unavailable ({exc}); using auto.")
+        status_updates.append(f"Device '{device}' unavailable ({exc}); using auto.")
         applied_device = "auto"
 
     if source_mode == "live":
@@ -471,11 +501,16 @@ def run_tracking_stream(
         except ValueError:
             capture_source = camera_source
         cap = cv2.VideoCapture(capture_source)
+        if not cap.isOpened():
+            cap.release()
+            yield None, None, None, f"Camera index {capture_source} not available. Try a different index (0, 1, 2...) or check if your camera is connected."
+            return
     else:
         cap = cv2.VideoCapture(str(video_path))
-    if not cap.isOpened():
-        yield None, None, None, "Unable to open video source."
-        return
+        if not cap.isOpened():
+            cap.release()
+            yield None, None, None, f"Unable to open video file: {video_path}"
+            return
 
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
@@ -521,6 +556,11 @@ def run_tracking_stream(
 
     try:
         while True:
+            # Check if stop was requested
+            if stop_event.is_set():
+                status_updates.append("⛔ Tracking stopped by user")
+                break
+            
             frame_start = time.time()
             if preload_frame is not None:
                 frame_bgr = preload_frame
@@ -540,7 +580,7 @@ def run_tracking_stream(
                 iou=float(iou),
                 max_det=max_det,
                 classes=class_ids,
-                verbose=False,
+                verbose=True,
             )
             res = results[0]
             boxes = getattr(res, "boxes", None)
@@ -675,6 +715,12 @@ def run_tracking_stream(
     yield str(tracked_path), (str(heatmap_path) if heat_export else None), (str(per_class_zip) if per_class_zip else None), "\n".join(summary)
 
 
+def stop_tracking():
+    """Signal the tracking process to stop."""
+    global stop_event
+    stop_event.set()
+    return "Stop signal sent. Processing will halt at the next frame."
+
 with gr.Blocks(title="YOLOv11 Tracker") as demo:
     gr.Markdown("## YOLOv11 Tracker (Gradio)")
 
@@ -688,6 +734,7 @@ with gr.Blocks(title="YOLOv11 Tracker") as demo:
             with gr.Row():
                 run_btn = gr.Button("Run tracking", variant="primary")
                 stream_btn = gr.Button("Run tracking (Stream)", variant="secondary")
+                stop_btn = gr.Button("⛔ Stop", variant="stop")
             
             tracked_out = gr.Video(label="Tracked video (Live)", streaming=True, autoplay=True)
             tracked_out_file = gr.File(label="Tracked video (Download)")
@@ -706,10 +753,18 @@ with gr.Blocks(title="YOLOv11 Tracker") as demo:
                     label="Input source",
                     info="Demo throttles playback, live uses OpenCV camera index or stream URL.",
                 )
-                camera_source = gr.Textbox(
-                    value="0",
-                    label="Camera index / stream URL",
-                    info="Used when source is live.",
+                with gr.Row():
+                    camera_source = gr.Textbox(
+                        value="0",
+                        label="Camera index / stream URL",
+                        info="Live mode: try 0, 1, 2... for webcams. Not all indices are available.",
+                        scale=3
+                    )
+                    detect_cameras_btn = gr.Button("🔍 Detect Cameras", size="sm", scale=1)
+                camera_info = gr.Textbox(
+                    label="Available cameras",
+                    interactive=False,
+                    visible=False
                 )
                 live_duration = gr.Slider(
                     5,
@@ -803,6 +858,27 @@ with gr.Blocks(title="YOLOv11 Tracker") as demo:
             simulate_real_time,
         ],
         outputs=[tracked_out, heatmap_out, per_class_out, log],
+    )
+
+    def detect_cameras():
+        """Detect and display available cameras."""
+        available = _detect_available_cameras(max_test=10)
+        if available:
+            info = f"Available camera indices: {', '.join(map(str, available))}"
+            return {camera_info: gr.update(value=info, visible=True)}
+        else:
+            return {camera_info: gr.update(value="No cameras detected on this system.", visible=True)}
+
+    detect_cameras_btn.click(
+        detect_cameras,
+        inputs=[],
+        outputs=[camera_info],
+    )
+
+    stop_btn.click(
+        stop_tracking,
+        inputs=[],
+        outputs=[log],
     )
 
 demo.queue(default_concurrency_limit=1)
