@@ -161,7 +161,7 @@ class YOLOTrackerApp:
         dt_row = Frame(self.right_frame)
         dt_row.pack(fill="x", padx=8, pady=6)
         Label(dt_row, text="Device:").grid(row=0, column=0, padx=4, pady=2, sticky="w")
-        OptionMenu(dt_row, self.device_var, "auto", "cpu", "cuda").grid(row=0, column=1, padx=4, pady=2, sticky="w")
+        OptionMenu(dt_row, self.device_var, "auto", "cpu", "cuda", "intel:gpu").grid(row=0, column=1, padx=4, pady=2, sticky="w")
         Label(dt_row, text="Tracker:").grid(row=0, column=2, padx=12, pady=2, sticky="w")
         OptionMenu(dt_row, self.tracker_var, "botsort.yaml", "bytetrack.yaml").grid(row=0, column=3, padx=4, pady=2, sticky="w")
 
@@ -283,18 +283,28 @@ class YOLOTrackerApp:
 
     # ---------------- Actions ----------------
     def load_model(self):
-        path = filedialog.askopenfilename(
-            title="Select YOLO model (.pt or .onnx)",
-            filetypes=[("YOLO model", "*.pt *.onnx"), ("All files", "*.*")]
-        )
-        if not path:
-            return
+        device = self.device_var.get()
+        
+        # For Intel GPU, allow folder selection; otherwise, file selection
+        if device == "intel:gpu":
+            path = filedialog.askdirectory(title="Select YOLO model folder (for Intel GPU)")
+            if not path:
+                return
+            self.model_path = path
+        else:
+            path = filedialog.askopenfilename(
+                title="Select YOLO model (.pt or .onnx)",
+                filetypes=[("YOLO model", "*.pt *.onnx"), ("All files", "*.*")]
+            )
+            if not path:
+                return
+            self.model_path = path
+        
         self.status_text.set("Loading model…")
         self.master.update_idletasks()
         try:
-            self.model = YOLO(path, task="segment")
-            self.model_path = path
-            self.status_text.set(f"Loaded model: {os.path.basename(path)}")
+            self.model = YOLO(self.model_path, task="segment")
+            self.status_text.set(f"Loaded model: {os.path.basename(self.model_path)}")
             self._populate_class_list()
             self._update_start_state()
         except Exception as e:
@@ -547,7 +557,8 @@ class YOLOTrackerApp:
                     iou=iou,
                     max_det=max_det,
                     classes=selected_classes,
-                    verbose=True
+                    verbose=True,
+                    device=self.device_var.get(),
                 )
                 res = results[0]
 
