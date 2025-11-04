@@ -2,3 +2,4 @@ ultralytics
 rich
 pyyaml
 roboflow
+gradio
