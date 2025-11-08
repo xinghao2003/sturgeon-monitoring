@@ -253,13 +253,8 @@ Thumbs.db
 
 # Application
 dataset/
-runs_seg
-*.pt
-README*txt
+runs_seg/
 output/
-videos/
-models/
-inputs/
 
 # Dev
 .kilocode/
