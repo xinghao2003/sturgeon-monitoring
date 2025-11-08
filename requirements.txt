@@ -3,3 +3,7 @@ rich
 pyyaml
 roboflow
 gradio
+openvino
+psutil
+pyside6
+opencv-python

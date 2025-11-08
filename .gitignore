@@ -256,3 +256,10 @@ dataset/
 runs_seg
 *.pt
 README*txt
+output/
+videos/
+models/
+inputs/
+
+# Dev
+.kilocode/
